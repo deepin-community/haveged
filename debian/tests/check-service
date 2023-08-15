@@ -1,0 +1,9 @@
+#!/bin/sh
+
+if ! systemctl is-active haveged; then
+    echo "haveged service is not active"
+    systemctl status haveged
+    exit 1
+fi
+
+exit 0

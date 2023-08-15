@@ -1,0 +1,40 @@
+#!/bin/sh
+
+if dpkg-architecture -i s390x; then
+    echo "dieharder tests are broken on s390x, skipping tests"
+    return 77
+fi
+
+set -e
+
+# Limit which tests are run, some aren't reliable and some take too long
+TESTS="0 1 2 3 4 8 9 10 11 12 13 15 16 100 101 202 203 204 205 206 207 208 209"
+
+# Notes on tests we don't run:
+#   5, 6, 7: marked as "Suspect" in dieharder -l
+#   14: marked as "Do Not Use" in dieharder -l
+#   102: buggy test that prints no output
+#   200: always fails with "Error:  Can only test distribution of positive ntuples."
+#   201: always fails
+
+DATA=$(mktemp)
+RESULTS=$(mktemp)
+
+cleanup()
+{
+    rm -f $RESULTS
+    rm -f $DATA
+}
+trap cleanup EXIT
+
+# Generate 4G of random data
+haveged -n 0 | dd of=$DATA bs=1k count=4096k
+
+for d in $TESTS; do
+    echo "Running test #$d"
+    echo "Test started at: $(date)"
+    dieharder -d $d -g 201 -f $DATA | tee $RESULTS
+    echo "Test ended at: $(date)"
+    echo ""
+    (! grep -w -q 'FAILED' $RESULTS)
+done
