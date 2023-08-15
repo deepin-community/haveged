@@ -1,0 +1,20 @@
+#!/bin/sh
+
+set -ex
+
+# rebuild, enabling the nist tests
+dh_auto_clean
+dh_autoreconf_clean
+dh_autoreconf
+dh_auto_configure -- --enable-nistest=yes
+
+# test installed haveged, not built one
+rm -f src/haveged
+# we unfortunately can't use a symlink to also test apparmor confinement,
+# because our apparmor profile doesn't let us rw to *any* files, and by
+# default haveged writes its random data to './sample'; so just copy
+# the installed file into the build tree, for the ent/nist tests to use
+cp /usr/sbin/haveged src/haveged
+
+make -C ent check
+make -C nist check

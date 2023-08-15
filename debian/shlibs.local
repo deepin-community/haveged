@@ -1,0 +1,4 @@
+# No need to ship a separate libhavege2-udeb, so bundle the daemon and
+# the library in the same udeb (haveged-udeb), and let shlibs:Depends
+# computation know where libhavege.so.2 is shipped:
+udeb: libhavege 2 haveged-udeb

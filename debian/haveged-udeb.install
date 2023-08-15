@@ -1,0 +1,2 @@
+usr/sbin/haveged
+usr/lib/*/libhavege.so.*

@@ -1,0 +1,4 @@
+usr/sbin/haveged
+usr/share/man/man8/haveged.8
+
+debian/usr.sbin.haveged /etc/apparmor.d/
