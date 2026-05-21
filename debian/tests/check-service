@@ -1,5 +1,10 @@
 #!/bin/sh
 
+if systemd-detect-virt -qc; then
+    echo "haveged service will fail in (unprivileged) container, skipping test"
+    exit 77
+fi
+
 if ! systemctl is-active haveged; then
     echo "haveged service is not active"
     systemctl status haveged

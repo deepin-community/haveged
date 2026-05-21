@@ -1,7 +1,7 @@
 /**
  ** Simple entropy harvester based upon the havege RNG
  **
- ** Copyright 2018-2021 Jirka Hladky hladky DOT jiri AT gmail DOT com
+ ** Copyright 2018-2026 Jirka Hladky hladky DOT jiri AT gmail DOT com
  ** Copyright 2009-2014 Gary Wuertz gary@issiweb.com
  **
  ** This program is free software: you can redistribute it and/or modify
@@ -32,6 +32,7 @@ struct pparams  {
    H_UINT         buffersz;         /* size of collection buffer (kb)               */
    H_UINT         detached;         /* non-zero if daemonized                       */
    H_UINT         foreground;       /* non-zero if running in foreground            */
+   H_UINT         once;             /* 1: refill entropy once and quit immediatelly */
    H_UINT         run_level;        /* type of run 0=daemon,1=setup,2=pip,sample kb */
    H_UINT         d_cache;          /* size of data cache (kb)                      */
    H_UINT         i_cache;          /* size of instruction cache (kb)               */
@@ -47,14 +48,20 @@ struct pparams  {
    char           *version;         /* Our version                                  */
    char           *watermark;       /* path to write_wakeup_threshold               */
    char           *command;         /* command which will be send/received          */
+   H_UINT         time_interval;    /* Time interval in seconds to add entropy unconditionally */
   };
 /**
  * Buffer size used when not running as daemon
  */
+#define STRINGIFY(x) #x
+#define TOSTRING(x) STRINGIFY(x)
+
 #define   APP_BUFF_SIZE    1024
 #define   INPUT_DEFAULT    "data"
 #define   OUTPUT_DEFAULT   "sample"
 #define   PID_DEFAULT      "/var/run/haveged.pid"
+#define   TIME_INTERVAL    60
+#define   PSELECT_TIMEOUT  2
 /**
  * Setup options (for app)
  */
@@ -67,6 +74,7 @@ struct pparams  {
 #define   SET_LWM       0x040
 #define   MULTI_CORE    0x080
 #define   CMD_MODE      0x100
+#define   RUN_ONCE      0x200
 /**
  * Default tests settings
  */

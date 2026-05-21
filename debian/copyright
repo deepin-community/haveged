@@ -1,6 +1,6 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: haveged
-Source: https://github.com/jirka-h/haveged/
+Source: https://github.com/jirka-h/haveged/tags
 
 Files: *
 Copyright: 2009-2017 Gary Wuertz <gary@issiweb.com>
@@ -35,11 +35,6 @@ License: GPL-3+
 Files: contrib/diags/data_prep.c
 Copyright: 2009-2011 Gary Wuertz <gary@issiweb.com>
                 2011 BenEleventh Consulting <manolson@beneleventh.com>
-License: GPL-3+
-
-Files: init.d/sysv.lsb init.d/sysv.redhat
-Copyright: 2011-2012 Gary Wuertz <gary@issiweb.com>
-           2011-2012 Jirka Hladky <hladky_dot_jiri_at_gmail_com>
 License: GPL-3+
 
 Files: nist/dfft.c

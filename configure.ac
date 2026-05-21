@@ -3,14 +3,14 @@
 ## Minimum Autoconf version
 
 AC_PREREQ([2.59])
-AC_INIT([haveged],[1.9.14])
+AC_INIT([haveged],[1.9.21])
 AC_CONFIG_AUX_DIR(config)
 AC_USE_SYSTEM_EXTENSIONS
 AC_CONFIG_HEADER([config.h])
 AM_INIT_AUTOMAKE([subdir-objects no-dependencies])
 AC_CONFIG_SRCDIR([src/haveged.c])
 AC_CHECK_TYPES([uint32_t, uint8_t])
-HA_LDFLAGS=""
+HA_LDFLAGS="-pthread"
 
 ##libtool_start##
 LT_INIT
@@ -49,14 +49,6 @@ elif test "x$enable_diagnostic" = "xinject"; then
    enable_daemon="no";
 fi
 
-## Make init configurable
-AC_ARG_ENABLE(init,
-   AS_HELP_STRING([--enable-init=[type]],[Enable service.* or sysv.* template [default=no]]),
-   , enable_init="no" )
-AC_ARG_ENABLE(initdir,
-   AS_HELP_STRING([--enable-initdir=DIR], [Directory for systemd service files [default=pkg-config var if init==service.*]]),
-   , enable_initdir="?")
-
 ## Make nist self-test configurable
 AC_ARG_ENABLE(nistest,
    AS_HELP_STRING([--enable-nistest=[no/yes]],[Run NIST test suite [default=no]]),
@@ -80,8 +72,7 @@ AC_ARG_ENABLE(threads,
    AS_HELP_STRING([--enable-threads=[no/yes]],[Enable threads [default=no]]),
    , enable_threads="no")
 if test "x$enable_threads" = "xyes"; then
-   AC_DEFINE(NUMBER_CORES, 4, [Define maxium number of collection threads])
-   HA_LDFLAGS="-pthread"
+   AC_DEFINE(NUMBER_CORES, 4, [Define maximum number of collection threads])
 else
    AC_DEFINE(NUMBER_CORES, 1, [Define to single collection thread])
 fi
@@ -96,7 +87,7 @@ if test "x$enable_tune" = "xyes"; then
 elif test "x$enable_tune" = "xcpuid"; then
    AC_DEFINE(TUNING_CPUID_ENABLE, 1, [Define to 1 to tune with host cpuid])
 elif test "x$enable_tune" = "xvfs"; then
-   AC_DEFINE(TUNING_VFS_ENABLE, 1, [Define to 1 to tune wiht host vfs])
+   AC_DEFINE(TUNING_VFS_ENABLE, 1, [Define to 1 to tune with host vfs])
 fi
 
 ## Checks for programs.
@@ -110,7 +101,7 @@ AC_HEADER_TIME
 AC_PROG_GCC_TRADITIONAL
 AC_FUNC_SELECT_ARGTYPES
 AC_TYPE_SIGNAL
-AC_CHECK_FUNCS([__rdtsc accept accept4 bind connect execv floor getsockopt gettimeofday listen memset pow pselect recv sched_yield select send setsockopt socket sqrt])
+AC_CHECK_FUNCS([__rdtsc accept accept4 bind connect execv floor getauxval getsockopt gettimeofday listen memset pow pselect recv sched_yield select send setsockopt socket sqrt])
 
 ## Checks for header files.
 AC_HEADER_STDC
@@ -124,7 +115,9 @@ AC_CHECK_HEADERS(stdint.h)
 AC_CHECK_HEADERS(stdio.h)
 AC_CHECK_HEADERS(stdlib.h)
 AC_CHECK_HEADERS(string.h)
+AC_CHECK_HEADERS([sys/auxv.h])
 AC_CHECK_HEADERS(sys/ioctl.h)
+AC_CHECK_HEADERS(sys/auxv.h)
 AC_CHECK_HEADERS(sys/mman.h)
 AC_CHECK_HEADERS(sys/types.h)
 AC_CHECK_HEADERS(sys/socket.h)
@@ -159,7 +152,7 @@ else
       daemon_type="none"
    ;;
   esac
-fi 
+fi
 
 ## Match host to havegedef macros
 case "$host" in
@@ -218,34 +211,9 @@ if test "x$enable_clock_gettime" = "xyes"; then
 fi
 
 
-## Determine init type
-
-if test "$daemon_type" = "none"; then
-    AC_DEFINE(NO_DAEMON, 1, [Define to 1 to suppress daemon interface])
-      init_type="none"
-else
-  case "$enable_init" in
-    service.*)
-       init_type="systemd"
-     ;;
-    sysv.*)
-       init_type="sysv"
-     ;;
-    *)
-       init_type="none"
-     ;;
-esac
-fi
-
 ## Fixup install and test options
 
-AC_SUBST(HA_DISTRO,$enable_init)
-AC_SUBST(HA_UNITD,$enable_initdir)
 AM_CONDITIONAL(ENABLE_BIN, test "$daemon_type" = "none")
-AM_CONDITIONAL(ENABLE_SYSV, test "$init_type" = "sysv")
-AM_CONDITIONAL(ENABLE_SYSTEMD, test "$init_type" = "systemd")
-AM_CONDITIONAL(ENABLE_SYSTEMD_LOOKUP, test "$enable_initdir" = "?")
-AM_CONDITIONAL(ENABLE_NOINIT, test "$init_type" = "none")
 AM_CONDITIONAL(ENABLE_ENT_TEST, test "$enable_enttest" = "yes")
 AM_CONDITIONAL(ENABLE_NIST_TEST, test "$enable_nistest" = "yes")
 
@@ -256,7 +224,6 @@ AC_SUBST(HA_LDFLAGS)
 AC_CONFIG_FILES([Makefile
                  src/Makefile
                  man/Makefile
-                 init.d/Makefile
                  ent/Makefile
                  nist/Makefile])
 AC_OUTPUT

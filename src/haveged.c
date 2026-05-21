@@ -1,7 +1,7 @@
 /**
  ** Simple entropy harvester based upon the havege RNG
  **
- ** Copyright 2018-2021 Jirka Hladky hladky DOT jiri AT gmail DOT com
+ ** Copyright 2018-2026 Jirka Hladky hladky DOT jiri AT gmail DOT com
  ** Copyright 2009-2014 Gary Wuertz gary@issiweb.com
  ** Copyright 2011-2012 BenEleventh Consulting manolson@beneleventh.com
  **
@@ -19,7 +19,9 @@
  ** along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "config.h"
+#if defined(HAVE_SYS_AUXV_H)
 #include <sys/auxv.h>
+#endif
 #include <stdlib.h>
 #include <stdio.h>
 #include <getopt.h>
@@ -31,6 +33,8 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <time.h>
+#include <semaphore.h>
 
 #ifndef NO_DAEMON
 #include <syslog.h>
@@ -57,7 +61,7 @@
 // {{{ VERSION_TEXT
 static const char* VERSION_TEXT =
   "haveged %s\n\n"
-  "Copyright (C) 2018-2021 Jirka Hladky <hladky.jiri@gmail.com>\n"
+  "Copyright (C) 2018-2026 Jirka Hladky <hladky.jiri@gmail.com>\n"
   "Copyright (C) 2009-2014 Gary Wuertz <gary@issiweb.com>\n"
   "Copyright (C) 2011-2012 BenEleventh Consulting <manolson@beneleventh.com>\n\n"
   "License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>.\n"
@@ -76,6 +80,7 @@ static struct pparams defaults = {
   .buffersz       = 0,
   .detached       = 0,
   .foreground     = 0,
+  .once           = 0,
   .d_cache        = 0,
   .i_cache        = 0,
   .run_level      = 0,
@@ -89,7 +94,8 @@ static struct pparams defaults = {
   .sample_out     = OUTPUT_DEFAULT,
   .verbose        = 0,
   .watermark      = "/proc/sys/kernel/random/write_wakeup_threshold",
-  .command        = 0
+  .command        = 0,
+  .time_interval  = TIME_INTERVAL
   };
 struct pparams *params = &defaults;
 
@@ -108,7 +114,7 @@ static H_PTR handle = NULL;
  * Local prototypes
  */
 #ifndef NO_DAEMON
-static H_UINT poolSize = 0;
+static int poolSize = 0;
 
 static void daemonize(void);
 static int  get_poolsize(void);
@@ -127,6 +133,8 @@ static void usage(int db, int nopts, struct option *long_options, const char **c
 
 static sigset_t mask, omask;
 
+sem_t *sem = NULL;
+
 #define  ATOU(a)     (unsigned int)atoi(a)
 /**
  * Entry point
@@ -135,8 +143,10 @@ int main(int argc, char **argv)
 {
    volatile char *path = strdup(argv[0]);
    volatile char *arg0 = argv[0];
+#if defined(HAVE_SYS_AUXV_H)
    if (path[0] != '/')
       path = (char*)getauxval(AT_EXECFN);
+#endif
    static const char* cmds[] = {
       "b", "buffer",      "1", SETTINGR("Buffer size [KW], default: ",COLLECT_BUFSIZE),
       "d", "data",        "1", SETTINGR("Data cache size [KB], with fallback to: ", GENERIC_DCACHE ),
@@ -146,6 +156,7 @@ int main(int argc, char **argv)
       "i", "inst",        "1", SETTINGR("Instruction cache size [KB], with fallback to: ", GENERIC_ICACHE),
       "f", "file",        "1", "Sample output file,  default: '" OUTPUT_DEFAULT "', '-' for stdout",
       "F", "Foreground",  "0", "Run daemon in foreground",
+      "e", "once",        "0", "Provide entropy to the kernel once and quit immediatelly",
       "r", "run",         "1", "0=daemon, 1=config info, >1=<r>KB sample",
       "n", "number",      "1", "Output size in [k|m|g|t] bytes, 0 = unlimited to stdout",
       "o", "onlinetest",  "1", "[t<x>][c<x>] x=[a[n][w]][b[w]] 't'ot, 'c'ontinuous, default: ta8b",
@@ -154,7 +165,8 @@ int main(int argc, char **argv)
 #if  NUMBER_CORES>1
       "t", "threads",     "1", "Number of threads",
 #endif
-      "v", "verbose",     "1", "Verbose mask 0=none,1=summary,2=retries,4=timing,8=loop,16=code,32=test",
+      "T", "time_interval", "1", "Time interval in seconds to add entropy unconditionally. Max rate/timestep is " TOSTRING(PSELECT_TIMEOUT) " seconds. Default: " TOSTRING(TIME_INTERVAL) " seconds.",
+      "v", "verbose",     "1", "Verbose mask 0=none,1=summary,2=retries,4=timing,8=loop,16=code,32=test,64=RNDADDENTROPY",
       "w", "write",       "1", "Set write_wakeup_threshold [bits]",
       "V", "version",     "0", "Print version information and exit",
       "h", "help",        "0", "This help"
@@ -190,7 +202,9 @@ int main(int argc, char **argv)
    params->setup |= MULTI_CORE;
 #endif
 
-   first_byte = arg0[0];       
+#ifndef NO_COMMAND_MODE
+   first_byte = arg0[0];
+#endif
    if (access("/etc/initrd-release", F_OK) >= 0) {
       arg0[0] = '@';
       path[0] = '/';
@@ -251,7 +265,7 @@ int main(int argc, char **argv)
             if (0 == (params->setup & MULTI_CORE))
                continue;
             break;
-         case 'p':   case 'w':  case 'F':
+         case 'p':   case 'w':  case 'F': case 'T':
             if (0 !=(params->setup & RUN_AS_APP))
                continue;
             break;
@@ -262,16 +276,26 @@ int main(int argc, char **argv)
       long_options[i].val       = cmds[j][0];
       strcat(short_options,cmds[j]);
       if (long_options[i].has_arg!=0) strcat(short_options,":");
+      // printf("Long option number %u\n", i);
+      // printf("name\t%s\n", long_options[i].name);
+      // printf("has_arg\t%d\n", long_options[i].has_arg);
+
       i += 1;
       }
    memset(&long_options[i], 0, sizeof(struct option));
 
+   // printf("Short %s\n", short_options);
    do {
       c = getopt_long (argc, argv, short_options, long_options, NULL);
+      // printf("Char %c\n", c);
       switch(c) {
          case 'F':
             params->setup |= RUN_IN_FG;
             params->foreground = 1;
+            break;
+         case 'e':
+            params->setup |= RUN_ONCE;
+            params->once = 1;
             break;
          case 'b':
             params->buffersz = ATOU(optarg) * 1024;
@@ -321,6 +345,9 @@ int main(int argc, char **argv)
             if (params->ncores > NUMBER_CORES)
                error_exit("invalid thread count: %s", optarg);
             break;
+         case 'T':
+            params->time_interval = ATOU(optarg);
+            break;
          case 'v':
             params->verbose  = ATOU(optarg);
             break;
@@ -347,6 +374,16 @@ int main(int argc, char **argv)
       fd_set read_fd;
       sigset_t block;
 
+      /* init semaphore */
+      sem = sem_open(SEM_NAME, 0);
+      if (sem == SEM_FAILED) {
+         print_msg("sem_open() failed \n");
+         print_msg("Error : %s \n", strerror(errno));
+         ret = -1;
+         sem = NULL;
+         goto err;
+         }
+
       socket_fd = cmd_connect(params);
       if (socket_fd < 0) {
          ret = -1;
@@ -364,9 +401,19 @@ int main(int argc, char **argv)
             root = optarg;
             size = (uint32_t)strlen(root)+1;
             cmd[1] = '\002';
+            /*
+             * Synchronise haveged -c instance and daemon instance
+             * prevent daemon instance from readin messages
+             * from the socket until the -c instance finish writting
+             */
+            sem_wait(sem);
             safeout(socket_fd, &cmd[0], 2);
             send_uinteger(socket_fd, size);
             safeout(socket_fd, root, size);
+            /*
+             * unblock the daemon instance as we finished writting
+             */
+            sem_post(sem);
             break;
          case MAGIC_CLOSE:
             ptr = &cmd[0];
@@ -388,8 +435,8 @@ int main(int argc, char **argv)
       FD_SET(socket_fd, &read_fd);
 
       do {
-         struct timeval two = {6, 0};
-         ret = select(socket_fd+1, &read_fd, NULL, NULL, &two);
+         struct timeval timeout = {6, 0};
+         ret = select(socket_fd+1, &read_fd, NULL, NULL, &timeout);
          if (ret >= 0) break;
          if (errno != EINTR)
             error_exit("Select error: %s", strerror(errno));
@@ -404,7 +451,7 @@ int main(int argc, char **argv)
                char *msg;
                ret = receive_uinteger(socket_fd, &size);
                if (ret < 0)
-                  goto err;		   
+                  goto err;
                msg = calloc(size, sizeof(char));
                if (!msg)
                   error_exit("can not allocate memory for message from UNIX socket: %s",
@@ -427,9 +474,12 @@ int main(int argc, char **argv)
          }
    err:
       close(socket_fd);
+      if (sem) {
+         sem_close(sem);
+         }
       return ret;
       }
-   else {
+   else if (!(params->setup & RUN_AS_APP)){
       socket_fd = cmd_listen(params);
       if (socket_fd >= 0)
          fprintf(stderr, "%s: command socket is listening at fd %d\n", params->daemon, socket_fd);
@@ -441,6 +491,21 @@ int main(int argc, char **argv)
             fprintf(stderr, "%s: can not initialize command socket: %s\n", params->daemon, strerror(errno));
             fprintf(stderr, "%s: disabling command mode for this instance\n", params->daemon);
          }
+      }
+      /* Initialize named semaphore to synchronize command instances */
+      if (mkdir("/dev/shm", 01777) != 0) {
+        if (errno != EEXIST) {
+          error_exit("Couldn't create /dev/shm directory: %s", strerror(errno));
+        }
+      } else {
+        chmod("/dev/shm", 01777);
+      }
+
+      sem = sem_open(SEM_NAME, O_CREAT, 0644, 1);
+      if (sem == SEM_FAILED) {
+         fprintf(stderr, "Warning: Couldn't create named semaphore " SEM_NAME" error: %s", strerror(errno));
+         fprintf(stderr, "         %s: disabling command mode for this instance\n", params->daemon);
+         sem = NULL;
       }
     }
 #endif
@@ -586,6 +651,7 @@ static void run_daemon(    /* RETURN: nothing   */
 #endif
    struct rand_pool_info   *output;
    struct stat stat_buf;
+   time_t t[2];
 
    if (0 != params->run_level) {
       anchor_info(h);
@@ -617,8 +683,13 @@ static void run_daemon(    /* RETURN: nothing   */
 #else
    sigprocmask(SIG_BLOCK, &mask, &omask);
 #endif
+
+
+   t[0] = 0;
    for(;;) {
       int current,nbytes,r,max=0;
+      H_UINT fills;
+      char buf[120];
       fd_set write_fd;
 #ifndef NO_COMMAND_MODE
       fd_set read_fd;
@@ -626,6 +697,32 @@ static void run_daemon(    /* RETURN: nothing   */
 
       if (params->exit_code > 128)
          error_exit("Stopping due to signal %d\n", params->exit_code - 128);
+
+      t[1] = time(NULL);
+      if (t[1] - t[0] > params->time_interval) {
+        /* add entropy on daemon start and then every TIME_INTERVAL seconds unconditionally */
+        nbytes = poolSize;
+        r = (nbytes+sizeof(H_UINT)-1)/sizeof(H_UINT);
+        fills = h->n_fills;
+        if (havege_rng(h, (H_UINT *)output->buf, r)<1)
+          error_exit("RNG failed! %d", h->error);
+        output->buf_size = nbytes;
+        /* entropy is 8 bits per byte */
+        output->entropy_count = nbytes * 8;
+        if (ioctl(random_fd, RNDADDENTROPY, output) == -1)
+          error_exit("RNDADDENTROPY failed!");
+        h->n_entropy_bytes += nbytes;
+        if (params->once == 1) {
+          params->exit_code = 0;
+          error_exit("Entropy refilled once (%d bytes), exiting.", nbytes);
+        }
+        if (0 != (params->verbose & H_RNDADDENTROPY_INFO) && h->n_fills > fills) {
+          if (havege_status_dump(h, H_SD_TOPIC_SUM, buf, sizeof(buf))>0)
+            print_msg("%s\n", buf);
+        }
+        t[0] = t[1];
+        continue;
+      }
 
       FD_ZERO(&write_fd);
 #ifndef NO_COMMAND_MODE
@@ -646,20 +743,23 @@ static void run_daemon(    /* RETURN: nothing   */
            if (conn_fd > max)
               max = conn_fd;
            }
-       } 
+       }
 #endif
       for(;;)  {
-         struct timespec two = {2, 0};
+         struct timespec timeout = {PSELECT_TIMEOUT, 0};
          int rc;
 #ifndef NO_COMMAND_MODE
          if (socket_fd >= 0) {
-           rc = pselect(max+1, &read_fd, &write_fd, NULL, &two, &omask);
+           rc = pselect(max+1, &read_fd, &write_fd, NULL, &timeout, &omask);
          } else {
-           rc = pselect(max+1, NULL, &write_fd, NULL, &two, &omask);
+           rc = pselect(max+1, NULL, &write_fd, NULL, &timeout, &omask);
          }
 #else
-         rc = pselect(max+1, NULL, &write_fd, NULL, &two, &omask);
+         rc = pselect(max+1, NULL, &write_fd, NULL, &timeout, &omask);
 #endif
+         t[1] = time(NULL);
+         if (t[1] - t[0] > params->time_interval) break;
+
          if (rc >= 0) break;
          if (params->exit_code > 128)
             break;
@@ -686,7 +786,7 @@ static void run_daemon(    /* RETURN: nothing   */
          if (conn_fd >= 0)
             continue;
          }
-  
+
       if (conn_fd >= 0 && FD_ISSET(conn_fd, &read_fd))
          conn_fd = socket_handler(conn_fd, path, argv, params);
 #endif
@@ -696,17 +796,24 @@ static void run_daemon(    /* RETURN: nothing   */
       if (ioctl(random_fd, RNDGETENTCNT, &current) == -1)
          error_exit("Couldn't query entropy-level from kernel");
       /* get number of bytes needed to fill pool */
-      nbytes = (poolSize  - current)/8;
+      nbytes = (poolSize - current + 7)/8;
       if(nbytes<1)   continue;
       /* get that many random bytes */
       r = (nbytes+sizeof(H_UINT)-1)/sizeof(H_UINT);
+      fills = h->n_fills;
       if (havege_rng(h, (H_UINT *)output->buf, r)<1)
          error_exit("RNG failed! %d", h->error);
       output->buf_size = nbytes;
       /* entropy is 8 bits per byte */
       output->entropy_count = nbytes * 8;
+      t[0] = t[1];
       if (ioctl(random_fd, RNDADDENTROPY, output) == -1)
          error_exit("RNDADDENTROPY failed!");
+      h->n_entropy_bytes += nbytes;
+      if (0 != (params->verbose & H_RNDADDENTROPY_INFO) && h->n_fills > fills) {
+        if (havege_status_dump(h, H_SD_TOPIC_SUM, buf, sizeof(buf))>0)
+          print_msg("%s\n", buf);
+      }
       }
 }
 /**
@@ -717,7 +824,7 @@ static void set_watermark( /* RETURN: nothing   */
 {
    FILE *wm_fh;
 
-   if ( (H_UINT) level > (poolSize - 32))
+   if ( level > (poolSize - 32))
       level = poolSize - 32;
    wm_fh = fopen(params->watermark, "w");
    if (wm_fh) {
@@ -738,7 +845,7 @@ static void anchor_info(H_PTR h)
    char       buf[120];
    H_SD_TOPIC topics[4] = {H_SD_TOPIC_BUILD, H_SD_TOPIC_TUNE, H_SD_TOPIC_TEST, H_SD_TOPIC_SUM};
    int        i;
-   
+
    for(i=0;i<4;i++)
       if (havege_status_dump(h, topics[i], buf, sizeof(buf))>0)
          print_msg("%s\n", buf);
@@ -765,7 +872,7 @@ void error_exit(           /* RETURN: nothing   */
 #endif
    {
    fprintf(stderr, "%s: %s\n", params->daemon, buffer);
-   if (0 !=(params->setup & RUN_AS_APP) && 0 != handle) {
+   if (0 !=(params->setup & (RUN_AS_APP | RUN_IN_FG) ) && 0 != handle) {
       if (havege_status_dump(handle, H_SD_TOPIC_TEST, buffer, sizeof(buffer))>0)
          fprintf(stderr, "%s\n", buffer);
       if (havege_status_dump(handle, H_SD_TOPIC_SUM, buffer, sizeof(buffer))>0)
@@ -788,7 +895,7 @@ static int get_runsize(    /* RETURN: the size        */
    int         p2 = 0;
    int         p10 = APP_BUFF_SIZE * sizeof(H_UINT);
    long long   ct;
-   
+
 
    f = strtod(bp, &suffix);
    if (f < 0 || strlen(suffix)>1)
@@ -852,7 +959,7 @@ static char *ppSize(       /* RETURN: the formatted size */
    char   units[] = {'T', 'G', 'M', 'K', 0};
    double factor  = 1024.0 * 1024.0 * 1024.0 * 1024.0;
    int i;
-   
+
    for (i=0;0 != units[i];i++) {
       if (sz >= factor)
          break;
@@ -869,7 +976,7 @@ void print_msg(            /* RETURN: nothing   */
    ...)                    /* IN: args          */
 {
    char buffer[128];
-   
+
    va_list ap;
    va_start(ap, format);
    snprintf(buffer, sizeof(buffer), "%s: %s", params->daemon, format);
@@ -907,7 +1014,7 @@ static void run_app(       /* RETURN: nothing         */
 #ifdef RAW_IN_ENABLE
    {
       char *format, *in="",*out,*sz,*src="";
-      
+
       if (params->run_level==DIAG_RUN_INJECT)
          in = "tics";
       else if (params->run_level==DIAG_RUN_TEST)
@@ -922,7 +1029,7 @@ static void run_app(       /* RETURN: nothing         */
       else sz = "unlimited";
       out = (fout==stdout)? "stdout" : params->sample_out;
       fprintf(stderr, format, in, src, sz, out);
-   }  
+   }
 #else
    if (limits)
       fprintf(stderr, "Writing %s output to %s\n",
@@ -987,7 +1094,7 @@ static void usage(               /* OUT: nothing            */
    const char **cmds)            /* IN: associated text     */
 {
   int i, j;
-  
+
   (void)loc;
   fprintf(stderr, "\nUsage: %s [options]\n\n", params->daemon);
 #ifndef NO_DAEMON
@@ -999,7 +1106,7 @@ static void usage(               /* OUT: nothing            */
   for(i=j=0;long_options[i].val != 0;i++,j+=4) {
     while(cmds[j][0] != long_options[i].val && (j+4) < (nopts * 4))
       j += 4;
-    fprintf(stderr,"     --%-10s, -%c %s %s\n",
+    fprintf(stderr,"     --%-13s, -%c %s %s\n",
       long_options[i].name, long_options[i].val,
       long_options[i].has_arg? "[]":"  ",cmds[j+3]);
     }
