@@ -1,0 +1,15 @@
+Author: Dimitri John Ledkov <xnox@ubuntu.com>
+Description: flush output after printing the startup message, to avoid confusion
+ of the service "starting up" after receiving sigterm.
+
+diff -Naurp haveged.orig/src/haveged.c haveged/src/haveged.c
+--- haveged.orig/src/haveged.c
++++ haveged/src/haveged.c
+@@ -649,6 +649,7 @@ static void run_daemon(    /* RETURN: no
+      havege_reparent(handle);
+    }
+    else printf ("%s starting up\n", params->daemon);
++   fflush(NULL);
+    if (0 != havege_run(h))
+       error_exit("Couldn't initialize HAVEGE rng %d", h->error);
+    if (0 != (params->verbose & H_DEBUG_INFO))

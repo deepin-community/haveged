@@ -1,21 +1,26 @@
 Source: haveged
 Section: misc
 Priority: optional
-Maintainer: Jérémy Bobbio <lunar@debian.org>
-Uploaders: nicoo <nicoo@debian.org>
-Build-Depends: debhelper-compat (= 13), dh-apparmor
-Standards-Version: 4.5.1
-Homepage: https://issihosts.com/haveged/
-Vcs-Git: https://salsa.debian.org/debian/haveged.git
-Vcs-Browser: https://salsa.debian.org/debian/haveged
-Rules-Requires-Root: no
+Maintainer: Daniel Baumann <daniel@debian.org>
+Build-Depends:
+ debhelper-compat (= 13),
+ dh-apparmor,
+Standards-Version: 4.7.4
+Homepage: https://github.com/jirka-h/haveged
+Vcs-Browser: https://forgejo.debian.net/linux/haveged
+Vcs-Git: https://forgejo.debian.net/linux/haveged
 
 Package: haveged
+Section: misc
 Architecture: linux-any
-Pre-Depends: ${misc:Pre-Depends}
-Depends: lsb-base (>= 3.2-14), ${shlibs:Depends}, ${misc:Depends}
-Suggests: apparmor
-Description: Linux entropy source using the HAVEGE algorithm
+Pre-Depends:
+ ${misc:Pre-Depends},
+Depends:
+ ${misc:Depends},
+ ${shlibs:Depends},
+Suggests:
+ apparmor,
+Description: entropy source using the HAVEGE algorithm
  haveged is a userspace entropy daemon which is not dependent upon the
  standard mechanisms for harvesting randomness for the system entropy
  pool. This is important in systems with high entropy needs or limited
@@ -28,42 +33,49 @@ Description: Linux entropy source using the HAVEGE algorithm
  .
  More information about HAVEGE is available at
  http://www.irisa.fr/caps/projects/hipsor/
-
-Package: libhavege2
-Section: libs
-Architecture: linux-any
-Multi-Arch: same
-Depends: ${shlibs:Depends}, ${misc:Depends}
-Pre-Depends: ${misc:Pre-Depends}
-Description: entropy source using the HAVEGE algorithm - shared library
- libhavege is a library that implements the HAVEGE (HArdware Volatile Entropy
- Gathering and Expansion). It provides a random number generator and it's
- associated tuning and testing factilities.
  .
- More information about HAVEGE is available at
- http://www.irisa.fr/caps/projects/hipsor/
- .
- This package contains the shared library.
-
-Package: libhavege-dev
-Section: libdevel
-Architecture: linux-any
-Multi-Arch: same
-Depends: libhavege2 (= ${binary:Version}), ${misc:Depends}
-Description: entropy source using the HAVEGE algorithm - development files
- libhavege is a library that implements the HAVEGE (HArdware Volatile Entropy
- Gathering and Expansion). It provides a random number generator and it's
- associated tuning and testing factilities.
- .
- More information about HAVEGE is available at
- http://www.irisa.fr/caps/projects/hipsor/
- .
- This package contains the development files.
+ Note: with linux 5.6, haveged is generally not needed anymore as the kernel
+ gained enough entropy functionality on its own. However, haveged is still
+ usefull in special use-cases, e.g. systems with a lot of containers.
 
 Package: haveged-udeb
 Package-Type: udeb
 Section: debian-installer
 Architecture: linux-any
-Depends: ${shlibs:Depends}, ${misc:Depends}
-Description: Linux entropy source using the HAVEGE algorithm -- udeb
+Depends:
+ ${misc:Depends},
+ ${shlibs:Depends},
+Description: entropy source using the HAVEGE algorithm (udeb)
  This package is for use in the Debian Installer.
+
+Package: libhavege-dev
+Section: libdevel
+Architecture: linux-any
+Multi-Arch: same
+Depends:
+ libhavege2 (= ${binary:Version}),
+ ${misc:Depends},
+Description: entropy source using the HAVEGE algorithm (development files)
+ haveged is a userspace entropy daemon which is not dependent upon the
+ standard mechanisms for harvesting randomness for the system entropy
+ pool. This is important in systems with high entropy needs or limited
+ user interaction (e.g. headless servers).
+ .
+ This package contains the development files.
+
+Package: libhavege2
+Section: libs
+Architecture: linux-any
+Multi-Arch: same
+Depends:
+ ${misc:Depends},
+ ${shlibs:Depends},
+Pre-Depends:
+ ${misc:Pre-Depends},
+Description: entropy source using the HAVEGE algorithm (shared library)
+ haveged is a userspace entropy daemon which is not dependent upon the
+ standard mechanisms for harvesting randomness for the system entropy
+ pool. This is important in systems with high entropy needs or limited
+ user interaction (e.g. headless servers).
+ .
+ This package contains the shared library.

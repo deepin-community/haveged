@@ -1,6 +1,173 @@
+haveged (1.9.21-1) sid; urgency=high
+
+  * Merging upstream version 1.9.21:
+    - Fix privilege escalation via command socket [CVE-2026-41054] - the uid
+      check sent a NAK to non-root callers but did not exit the function,
+      allowing unprivileged local users to send commands to the root-running
+      daemon via the abstract UNIX socket (Closes: #1137096).
+
+ -- Daniel Baumann <daniel@debian.org>  Tue, 19 May 2026 16:54:30 +0200
+
+haveged (1.9.20-1) sid; urgency=medium
+
+  * Merging upstream version 1.9.20.
+  * Removing shm-directory.patch, included upstream.
+  * Renumbering patches.
+
+ -- Daniel Baumann <daniel@debian.org>  Thu, 30 Apr 2026 05:36:06 +0200
+
+haveged (1.9.19-15) sid; urgency=medium
+
+  * Updating watch file to version 5.
+  * Updating to standards version 4.7.4.
+  * Updating homepage field.
+  * Harmonizing upstream metadata file.
+  * Updating package descriptions.
+
+ -- Daniel Baumann <daniel@debian.org>  Wed, 29 Apr 2026 16:43:45 +0200
+
+haveged (1.9.19-14) sid; urgency=medium
+
+  * Updating to standards version 4.7.3.
+  * Removing nicoo <nicoo@debian.org> from uploaders, they seem not active
+    anymore for some years (but are always welcome to return).
+
+ -- Daniel Baumann <daniel@debian.org>  Wed, 04 Feb 2026 19:37:01 +0100
+
+haveged (1.9.19-13) sid; urgency=medium
+
+  * Removing rules-requires-root, not needed anymore.
+
+ -- Daniel Baumann <daniel@debian.org>  Sun, 30 Nov 2025 19:09:44 +0100
+
+haveged (1.9.19-12) sid; urgency=medium
+
+  [ Daniel Baumann ]
+  * Simplifying watch file.
+
+  [ Dimitri John Ledkov ]
+  * Adding patch to flush output after printing the startup message, to
+    avoid confusion of the service "starting up" after receiving sigterm.
+  * Adding Conflicts=shutdown.target in haveged.service, to actually stop
+    haveged unit during the shutdown transaction, instead of relying on
+    systemd-shutdown to kill haveged during the very late catch-all
+    killall.
+
+  [ Dan Streetman ]
+  * Adding apparmor-profile to allow haveged to bind to unix sockets.
+  * Adding ConditionVirtualization=!container in haveged.service.
+
+  [ Simon Chopin ]
+  * Verify haveged service is active in autopkgtests, skipped in
+    containers.
+
+  [ Daniel Baumann ]
+  * Moving apparmor profile to apparmor subdirectory.
+  * Refreshing flush-startup-output.patch.
+
+ -- Daniel Baumann <daniel@debian.org>  Fri, 25 Apr 2025 17:58:00 +0200
+
+haveged (1.9.19-11) sid; urgency=medium
+
+  * Updating to standards version 4.7.1.
+  * Updating to standards version 4.7.2.
+  * Using codename instead of suitename in changelog.
+
+ -- Daniel Baumann <daniel@debian.org>  Wed, 19 Mar 2025 20:43:33 +0100
+
+haveged (1.9.19-10) sid; urgency=medium
+
+  * Updating source url in copyright.
+
+ -- Daniel Baumann <daniel@debian.org>  Thu, 20 Feb 2025 21:14:48 +0100
+
+haveged (1.9.19-9) sid; urgency=medium
+
+  * Adding vcs fields.
+  * Wrap and sorting debian files.
+
+ -- Daniel Baumann <daniel@debian.org>  Wed, 05 Feb 2025 09:24:40 +0100
+
+haveged (1.9.19-8) sid; urgency=medium
+
+  * Adding patch to create /dev/shm in haveged itself if it is not
+    existing (Closes: #1087324).
+  * Removing haveged-udeb.postinst again.
+
+ -- Daniel Baumann <daniel@debian.org>  Tue, 14 Jan 2025 18:47:02 +0100
+
+haveged (1.9.19-7) sid; urgency=medium
+
+  * Using postinst in haveged-udeb to create /dev/shm at runtime (Closes:
+    #1087324).
+
+ -- Daniel Baumann <daniel@debian.org>  Tue, 14 Jan 2025 11:39:21 +0100
+
+haveged (1.9.19-6) sid; urgency=medium
+
+  * Simplifying dpkg-maintscript calls by using debhelper maintscript
+    file.
+  * Correcting wrong version in maintscript file.
+
+ -- Daniel Baumann <daniel@debian.org>  Sun, 15 Dec 2024 08:59:02 +0100
+
+haveged (1.9.19-5) sid; urgency=medium
+
+  * Removing old init.d script on upgrade (Closes: #1089979).
+
+ -- Daniel Baumann <daniel@debian.org>  Sun, 15 Dec 2024 08:50:13 +0100
+
+haveged (1.9.19-4) sid; urgency=medium
+
+  * Adding empty /dev/shm in haveged-udeb to fix fail-to-start because
+    /dev/shm/sem.haveged_sem cannot be created (Closes: #1087324).
+
+ -- Daniel Baumann <daniel@debian.org>  Thu, 12 Dec 2024 17:50:31 +0100
+
+haveged (1.9.19-3) sid; urgency=medium
+
+  * Udating apparmor profile, thanks to Giacomo Mulas
+    <giacomo.mulas@inaf.it> (Closes: #1087318).
+
+ -- Daniel Baumann <daniel@debian.org>  Tue, 12 Nov 2024 15:11:42 +0100
+
+haveged (1.9.19-2) sid; urgency=medium
+
+  * Trimming previous changelog entry.
+  * Correcting spelling typo in 1.9.14-1 changelog entries.
+
+ -- Daniel Baumann <daniel@debian.org>  Sun, 10 Nov 2024 17:08:50 +0100
+
+haveged (1.9.19-1) sid; urgency=low
+
+  * Merging upstream version 1.9.19 (Closes: #999811, #1078052):
+    - haveged can be run as an application if also running as a daemon
+      (Closes: #998382).
+  * Removing unused gbp.conf.
+  * Removing unused README.source.
+  * Removing sysvinit remains.
+  * Updating to standards version 4.7.0.
+  * Removing vcs fields.
+  * Adding explicit section for binary packages.
+  * Updating watch file.
+  * Prefixing debhelper files with package names.
+  * Moving apparmor files to local subdirectory within packaging
+    directory.
+  * Wrap and sorting packaging files.
+  * Updating SystemCall entries in service file to fix armel issues
+    (Closes: #985196).
+
+ -- Daniel Baumann <daniel@debian.org>  Sun, 10 Nov 2024 16:10:16 +0100
+
+haveged (1.9.14-2) sid; urgency=low
+
+  * New maintainer (Closes: #1087263).
+
+ -- Daniel Baumann <daniel@debian.org>  Sun, 10 Nov 2024 15:27:58 +0100
+
 haveged (1.9.14-1) unstable; urgency=low
 
-  * New upstram version (2021-01-01)
+  * New upstream version (2021-01-01)
     Added --version and new subcommand to close communication socket
 
   * Upgrade to debhelper compatibility level 13

@@ -1,3 +1,41 @@
+v1.9.21 (May 14, 2026) [Jirka Hladky]
+* Fix privilege escalation via command socket (CVE-2026-41054)
+* Check peer credentials before reading command (CVE-2026-41054)
+* Handle failing opening of semaphore [Werner Fink]
+* Fix /dev/shm permissions to use sticky bit [Dirk Müller]
+* Use chmod after mkdir to ensure correct /dev/shm permissions
+* Update libtool: add lib64 search paths, remove dead code
+
+v1.9.20 (Apr 29, 2026) [Jirka Hladky]
+* Only warn when creating of named semaphore fails
+* Creating /dev/shm if its not existing, otherwise haveged fails to start
+* Fixed several typos
+
+v1.9.19 (Oct 02, 2024) [Jirka Hladky]
+* Added --time_interval N to add entropy unconditionally every N seconds
+
+v1.9.18 (Apr 09, 2022) [Jirka Hladky]
+* Round bits up and target full pool size [Jason A. Donenfeld]
+* Specify right kernel commit in README [Jason A. Donenfeld]
+
+v1.9.17 (Jan 08, 2022)
+* Added new verbose mode [Jirka Hladky]
+* haveged-once.service - use @SBIN_DIR@ instead of hard-coded path [Jirka Hladky]
+
+v1.9.16 (Jan 02, 2022)
+* Allow newuname syscall [Jirka Hladky]
+* Fix: haveged cannot be run as an application if also running as a daemon [Günther Brunthaler]
+* Add entropy unconditionally at the start and then every 60 seconds [Jirka Hladky]
+* New parameter --once to refill entropy once and quit immediately [Jirka Hladky]
+* Added haveged-once.service to provide entropy once (intended for initramfs) [Jirka Hladky]
+
+v1.9.15 (Sep 30, 2021)
+* Check for sys/auxv.h before using it. [Peter Seiderer]
+* fix build on uclibc (origin/pr/58) [Pierre-Jean Texier]
+* Improved make check tests [Jirka Hladky]
+* Removed old init.d files. Configs are under contrib directory [Jirka Hladky]
+* Support for Linux kernel LRNG patch set
+
 v1.9.14 (Jan 01, 2021)
 * made enttest configurable
 * havegecmd.c - new command added to close the communication socket [Werner Fink]

@@ -1,0 +1,1 @@
+rm_conffile /etc/init.d/haveged 1.9.19-6~

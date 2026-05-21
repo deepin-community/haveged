@@ -1,9 +1,23 @@
-Tests: check-service
+Tests:
+ check-service,
+Restrictions:
+ skippable,
 
-Tests: run-tests
-Restrictions: rw-build-tree, allow-stderr
-Depends: @builddeps@, @
+Tests:
+ run-tests,
+Restrictions:
+ allow-stderr,
+ rw-build-tree,
+Depends:
+ @,
+ @builddeps@,
 
-Tests: dieharder
-Restrictions: skippable, allow-stderr
-Depends: @, grep, dieharder
+Tests:
+ dieharder,
+Restrictions:
+ allow-stderr,
+ skippable,
+Depends:
+ dieharder,
+ grep,
+ @,
